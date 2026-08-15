@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>WingRush - Classic Arcade Flap Game</title>
+  <meta name="description" content="Embark on an exhilarating flying adventure in WingRush. Dodge obstacles, chase high scores, and enjoy smooth, modern arcade action right in your browser!">
+  <link rel="stylesheet" href="style.css">
+  <!-- Import Orbitron and Outfit fonts for premium arcade feel -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;800&family=Orbitron:wght@700;900&display=swap" rel="stylesheet">
+</head>
+<body>
+  <div id="game-container">
+    <!-- Retro Scanlines Filter -->
+    <div class="retro-scanlines"></div>
+
+    <!-- Gameplay Canvas -->
+    <canvas id="game-canvas"></canvas>
+
+    <!-- HUD Overlay (Visible during play) -->
+    <div id="hud" class="overlay hidden">
+      <div class="hud-top">
+        <div id="hud-score-container">
+          <span class="hud-label">SCORE</span>
+          <span id="hud-score" class="hud-value">0</span>
+        </div>
+        <div id="hud-best-container">
+          <span class="hud-label">BEST</span>
+          <span id="hud-best" class="hud-value">0</span>
+        </div>
+      </div>
+      <div class="hud-controls-group">
+        <button id="pause-btn" class="hud-icon-btn" aria-label="Pause Game">
+          <!-- Pause Icon -->
+          <svg viewBox="0 0 24 24" width="24" height="24">
+            <path fill="currentColor" d="M14,19H18V5H14M6,19H10V5H6V19Z" />
+          </svg>
+        </button>
+        <button id="mute-btn" class="hud-icon-btn" aria-label="Toggle Audio">
+          <!-- Sound On Icon -->
+          <svg id="sound-on-icon" viewBox="0 0 24 24" width="24" height="24">
+            <path fill="currentColor" d="M14,3.23V5.29C16.89,6.15 19,8.83 19,12C19,15.17 16.89,17.85 14,18.71V20.77C18,19.86 21,16.28 21,12C21,7.72 18,4.14 14,3.23M16.5,12C16.5,10.23 15.5,8.71 14,7.97V16C15.5,15.3 16.5,13.77 16.5,12M3,9V15H7L12,20V4L7,9H3Z" />
+          </svg>
+          <!-- Sound Off Icon -->
+          <svg id="sound-off-icon" class="hidden" viewBox="0 0 24 24" width="24" height="24">
+            <path fill="currentColor" d="M12,4L9.91,6.09L12,8.18M4.27,3L3,4.27L7.73,9H3V15H7L12,20V13.27L16.25,17.53C15.58,18.04 14.83,18.46 14,18.7V20.76C15.38,20.45 16.63,19.78 17.69,18.95L19.73,21L21,19.73L12,10.73M19,12C19,12.78 18.84,13.5 18.57,14.18L20.12,15.73C20.68,14.61 21,13.35 21,12C21,7.72 18,4.14 14,3.23V5.29C16.89,6.15 19,8.83 19,12M14,7.97V11.03L16.26,13.29C16.41,12.88 16.5,12.45 16.5,12C16.5,10.23 15.5,8.71 14,7.97Z" />
+          </svg>
+        </button>
+      </div>
+    </div>
+
+    <!-- Start Screen Overlay -->
+    <div id="start-screen" class="overlay">
+      <div class="menu-content glass-panel">
+        <h1 class="game-title">Wing<span class="accent">Rush</span></h1>
+        <p class="game-tagline">How far can you fly?</p>
+        
+        <div class="stats-brief">
+          <div class="stat-item">
+            <span class="label">HIGH SCORE</span>
+            <span id="start-best-score" class="value">0</span>
+          </div>
+        </div>
+
+        <div class="menu-buttons-row">
+          <button id="play-btn" class="action-btn">
+            PLAY
+            <svg viewBox="0 0 24 24" width="24" height="24">
+              <path fill="currentColor" d="M8,5.14V19.14L19,12.14L8,5.14Z" />
+            </svg>
+          </button>
+          <button id="start-settings-btn" class="hud-icon-btn start-settings" aria-label="Open Settings">
+            <svg viewBox="0 0 24 24" width="24" height="24">
+              <path fill="currentColor" d="M12,15.5A3.5,3.5 0 0,1 8.5,12A3.5,3.5 0 0,1 12,8.5A3.5,3.5 0 0,1 15.5,12A3.5,3.5 0 0,1 12,15.5M19.43,12.97C19.47,12.65 19.5,12.33 19.5,12C19.5,11.67 19.47,11.34 19.43,11L21.54,9.37C21.73,9.22 21.78,8.95 21.66,8.73L19.66,5.27C19.54,5.05 19.27,4.96 19.05,5.05L16.56,6.05C16.04,5.66 15.47,5.34 14.86,5.08L14.47,2.42C14.43,2.18 14.22,2 13.97,2H9.97C9.72,2 9.51,2.18 9.47,2.42L9.08,5.08C8.47,5.34 7.9,5.66 7.38,6.05L4.89,5.05C4.67,4.96 4.4,5.05 4.28,5.27L2.28,8.73C2.16,8.95 2.21,9.22 2.4,9.37L4.51,11C4.47,11.34 4.5,11.67 4.5,12C4.5,12.33 4.47,12.65 4.51,13L2.4,14.63C2.21,14.78 2.16,15.05 2.28,15.27L4.28,18.73C4.4,18.95 4.67,19.04 4.89,18.95L7.38,17.95C7.9,18.34 8.47,18.66 9.08,18.92L9.47,21.58C9.51,21.82 9.72,22 9.97,22H13.97C14.22,22 14.43,21.82 14.47,21.58L14.86,18.92C15.47,18.66 16.04,18.34 16.56,17.95L19.05,18.95C19.27,19.04 19.54,18.95 19.66,18.73L21.66,15.27C21.78,15.05 21.73,14.78 21.54,14.63L19.43,12.97Z" />
+            </svg>
+          </button>
+        </div>
+
+        <div class="controls-hint">
+          <div class="hint-item">
+            <kbd>SPACE</kbd> or <span class="highlight">CLICK</span> / <span class="highlight">TAP</span> to Fly
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Pause Screen Overlay -->
+    <div id="pause-screen" class="overlay hidden">
+      <div class="menu-content glass-panel bounce-in">
+        <h2 class="game-over-title">PAUSED</h2>
+        <p class="game-tagline">Press <kbd>P</kbd> or tap Resume to fly</p>
+        
+        <button id="resume-btn" class="action-btn">
+          RESUME
+          <svg viewBox="0 0 24 24" width="24" height="24">
+            <path fill="currentColor" d="M8,5.14V19.14L19,12.14L8,5.14Z" />
+          </svg>
+        </button>
+      </div>
+    </div>
+
+    <!-- Settings Screen Overlay -->
+    <div id="settings-screen" class="overlay hidden">
+      <div class="menu-content glass-panel bounce-in">
+        <h2 class="game-over-title">SETTINGS</h2>
+        
+        <div class="settings-options">
+          <div class="settings-row">
+            <span class="settings-label">AUDIO SOUNDS</span>
+            <button id="settings-sound-btn" class="settings-toggle-btn">ON</button>
+          </div>
+        </div>
+
+        <div class="controls-info">
+          <h3 class="controls-info-title">CONTROLS</h3>
+          <ul class="controls-list">
+            <li><kbd>SPACE</kbd> or <span class="highlight">TAP/CLICK</span> to Flap Up</li>
+            <li><kbd>P</kbd> to Pause / Resume</li>
+          </ul>
+        </div>
+
+        <button id="settings-close-btn" class="action-btn restart">
+          CLOSE
+        </button>
+      </div>
+    </div>
+
+    <!-- Game Over Screen Overlay -->
+    <div id="game-over-screen" class="overlay hidden">
+      <div class="menu-content glass-panel bounce-in">
+        <h2 class="game-over-title">GAME OVER</h2>
+        
+        <div class="score-card">
+          <div class="score-row">
+            <span class="score-label">SCORE</span>
+            <span id="go-score" class="score-value scale-up">0</span>
+          </div>
+          <div class="score-row">
+            <span class="score-label">BEST</span>
+            <span id="go-best-score" class="score-value">0</span>
+          </div>
+          <div id="new-high-score-banner" class="new-banner hidden">
+            <span>NEW HIGH SCORE!</span>
+          </div>
+        </div>
+
+        <div id="go-comparison" class="comparison-text"></div>
+
+        <button id="restart-btn" class="action-btn restart">
+          PLAY AGAIN
+          <svg viewBox="0 0 24 24" width="24" height="24">
+            <path fill="currentColor" d="M17.65,6.35C16.2,4.9 14.21,4 12,4A8,8 0 0,0 4,12A8,8 0 0,0 12,20C15.73,20 18.84,17.45 19.73,14H17.65C16.83,16.33 14.61,18 12,18A6,6 0 0,1 6,12A6,6 0 0,1 12,6C13.66,6 15.14,6.69 16.22,7.78L13,11H20V4L17.65,6.35Z" />
+          </svg>
+        </button>
+        
+        <div class="retry-hint">Tap / Press SPACE to retry</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Audio Synthesis Script -->
+  <script src="audio.js"></script>
+  <!-- Main Game Loop and Logic Script -->
+  <script src="game.js"></script>
+</body>
+</html>
