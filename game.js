@@ -429,11 +429,41 @@ class GameEngine {
     
     this.scoreText = document.getElementById('hud-score');
     this.bestText = document.getElementById('hud-best');
-    this.startBestText = document.getElementById('start-best-score');
     this.goScoreText = document.getElementById('go-score');
-    this.goBestText = document.getElementById('go-best-score');
     this.newHighScoreBanner = document.getElementById('new-high-score-banner');
     this.goComparisonText = document.getElementById('go-comparison');
+
+    // Pilot Badge HUD
+    this.hudPilotNameText = document.getElementById('hud-pilot-name');
+
+    // Pilot Badge Start Screen
+    this.startPilotNameText = document.getElementById('start-pilot-name');
+    this.startPilotBestText = document.getElementById('start-pilot-best');
+    this.startGlobalBestText = document.getElementById('start-global-best');
+
+    // Pilot Badge Game Over Screen
+    this.goPilotNameText = document.getElementById('go-pilot-name');
+    this.goPilotBestText = document.getElementById('go-pilot-best');
+    this.goGlobalBestText = document.getElementById('go-global-best');
+
+    // Pilot Registry Elements
+    this.pilotBtn = document.getElementById('pilot-registry-btn');
+    this.goPilotBtn = document.getElementById('go-pilot-registry-btn');
+    this.pilotScreen = document.getElementById('pilot-screen');
+    this.pilotForm = document.getElementById('pilot-registration-form');
+    this.pilotInput = document.getElementById('pilot-name-input');
+    this.pilotList = document.getElementById('pilot-list');
+    this.pilotCloseBtn = document.getElementById('pilot-close-btn');
+
+    // Flight Logs Elements
+    this.viewLogsBtn = document.getElementById('view-logs-btn');
+    this.historyScreen = document.getElementById('history-screen');
+    this.historyList = document.getElementById('history-list');
+    this.historyCloseBtn = document.getElementById('history-close-btn');
+    this.filterAllBtn = document.getElementById('filter-all-btn');
+    this.filterPersonalBtn = document.getElementById('filter-personal-btn');
+    this.summaryTotalRuns = document.getElementById('summary-total-runs');
+    this.summaryAvgScore = document.getElementById('summary-avg-score');
 
     // Pause UI Elements
     this.pauseBtn = document.getElementById('pause-btn');
@@ -451,12 +481,47 @@ class GameEngine {
     this.score = 0;
     this.isPaused = false;
     
-    // Protected High Score read
+    // Load Pilots, Active Pilot, and Game History
+    this.pilots = [];
+    this.activePilot = 'ACE';
+    this.history = [];
+    this.historyFilter = 'GLOBAL';
+
     try {
-      this.highScore = parseInt(localStorage.getItem('wingrush_best')) || 0;
+      const storedPilots = localStorage.getItem('wingrush_pilots');
+      const storedActive = localStorage.getItem('wingrush_active_pilot');
+      const storedHistory = localStorage.getItem('wingrush_history');
+
+      if (storedPilots) {
+        this.pilots = JSON.parse(storedPilots);
+      }
+      if (storedActive) {
+        this.activePilot = storedActive;
+      }
+      if (storedHistory) {
+        this.history = JSON.parse(storedHistory);
+      }
+
+      // Check migration from old wingrush_best
+      const oldBest = parseInt(localStorage.getItem('wingrush_best')) || 0;
+      if (this.pilots.length === 0) {
+        this.activePilot = 'ACE';
+        this.pilots.push({
+          name: 'ACE',
+          bestScore: oldBest,
+          gamesPlayed: 0,
+          totalScore: 0
+        });
+        localStorage.setItem('wingrush_pilots', JSON.stringify(this.pilots));
+        localStorage.setItem('wingrush_active_pilot', this.activePilot);
+      }
+
+      this.highScore = Math.max(...this.pilots.map(p => p.bestScore), 0);
     } catch (e) {
+      console.warn("localStorage read/migration failed:", e);
+      this.pilots = [{ name: 'ACE', bestScore: 0, gamesPlayed: 0, totalScore: 0 }];
+      this.activePilot = 'ACE';
       this.highScore = 0;
-      console.warn("localStorage read failed:", e);
     }
     
     // Dynamic difficulty metrics
@@ -718,6 +783,63 @@ class GameEngine {
         this.soundOffIcon.classList.add('hidden');
       }
     });
+
+    // Pilot Registry Triggers
+    this.pilotBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      this.openPilotRegistry();
+    });
+
+    this.goPilotBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      this.openPilotRegistry();
+    });
+
+    this.pilotCloseBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      this.closePilotRegistry();
+    });
+
+    this.pilotForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const newName = this.pilotInput.value.trim().toUpperCase();
+      if (!newName) return;
+
+      const alphaNumRegex = /^[A-Z0-9]{2,12}$/;
+      if (!alphaNumRegex.test(newName)) {
+        alert("REGISTRY DENIED\nCodename must be 2 to 12 letters/numbers only.");
+        return;
+      }
+
+      const exists = this.pilots.some(p => p.name === newName);
+      if (exists) {
+        alert("REGISTRY DENIED\nCodename already exists in pilot database.");
+        return;
+      }
+
+      this.registerPilot(newName);
+    });
+
+    // Flight Logs Triggers
+    this.viewLogsBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      this.openHistory();
+    });
+
+    this.historyCloseBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      this.closeHistory();
+    });
+
+    this.filterAllBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      this.toggleHistoryFilter('GLOBAL');
+    });
+
+    this.filterPersonalBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      this.toggleHistoryFilter('PERSONAL');
+    });
   }
 
   togglePause() {
@@ -772,9 +894,19 @@ class GameEngine {
   }
 
   updateLeaderboard() {
-    this.startBestText.innerText = this.highScore;
-    this.bestText.innerText = this.highScore;
-    this.goBestText.innerText = this.highScore;
+    const active = this.getActivePilotObj();
+    const globalBest = this.getGlobalBest();
+
+    if (this.startPilotNameText) this.startPilotNameText.innerText = this.activePilot;
+    if (this.startPilotBestText) this.startPilotBestText.innerText = active ? active.bestScore : 0;
+    if (this.startGlobalBestText) this.startGlobalBestText.innerText = globalBest;
+
+    if (this.hudPilotNameText) this.hudPilotNameText.innerText = this.activePilot;
+    if (this.bestText) this.bestText.innerText = active ? active.bestScore : 0;
+
+    if (this.goPilotNameText) this.goPilotNameText.innerText = this.activePilot;
+    if (this.goPilotBestText) this.goPilotBestText.innerText = active ? active.bestScore : 0;
+    if (this.goGlobalBestText) this.goGlobalBestText.innerText = globalBest;
   }
 
   startGame() {
@@ -812,20 +944,41 @@ class GameEngine {
     this.shakeTimer = 25; // Trigger heavy screen shake
     this.gameOverTime = Date.now();
     
-    // High Score Processing
-    let isNewHigh = false;
-    if (this.score > this.highScore) {
-      this.highScore = this.score;
-      try {
-        localStorage.setItem('wingrush_best', this.highScore);
-      } catch (e) {
-        console.warn("Storage write failed", e);
+    // Save Run History Record
+    this.history.push({
+      pilot: this.activePilot,
+      score: this.score,
+      timestamp: Date.now()
+    });
+
+    // Update pilot stats
+    const active = this.getActivePilotObj();
+    let isNewPersonalBest = false;
+    let isNewGlobalRecord = false;
+
+    if (active) {
+      active.gamesPlayed++;
+      active.totalScore += this.score;
+      if (this.score > active.bestScore) {
+        active.bestScore = this.score;
+        isNewPersonalBest = true;
       }
-      isNewHigh = true;
-      this.updateLeaderboard();
-      window.gameAudio.playHighScore(); // Satisfying high score arpeggio
+    }
+
+    // Check if new global runway record
+    if (this.score > this.highScore) {
+      isNewGlobalRecord = true;
+    }
+
+    // Save and sync updated leaderboard
+    this.saveData();
+    this.updateLeaderboard();
+
+    // Sound rewards
+    if (isNewGlobalRecord || isNewPersonalBest) {
+      window.gameAudio.playHighScore();
     } else {
-      window.gameAudio.playCollision(); // Normal explosion sound
+      window.gameAudio.playCollision();
     }
 
     // Trigger explosive visual debris particle shockwave
@@ -845,18 +998,30 @@ class GameEngine {
 
     // Populate Game Over Overlay
     this.goScoreText.innerText = this.score;
-    this.goBestText.innerText = this.highScore;
+    this.goPilotNameText.innerText = this.activePilot;
+    this.goPilotBestText.innerText = active ? active.bestScore : 0;
+    this.goGlobalBestText.innerText = this.highScore;
     
-    if (isNewHigh) {
+    if (isNewGlobalRecord) {
+      this.newHighScoreBanner.innerHTML = "<span>NEW RUNWAY RECORD!</span>";
       this.newHighScoreBanner.classList.remove('hidden');
-      this.goComparisonText.innerHTML = "🏆 NEW RECORD! YOU CONQUERED THE SKY!";
+      this.goComparisonText.innerHTML = "🏆 GLOBAL RECORD CONQUERED! YOU ARE THE SKY KING!";
+    } else if (isNewPersonalBest) {
+      this.newHighScoreBanner.innerHTML = "<span>NEW PILOT BEST!</span>";
+      this.newHighScoreBanner.classList.remove('hidden');
+      this.goComparisonText.innerHTML = `🎖️ Codename <span class="highlight-score">${this.activePilot}</span> set a new personal record!`;
     } else {
       this.newHighScoreBanner.classList.add('hidden');
-      if (this.score === 0 && this.highScore === 0) {
-        this.goComparisonText.innerHTML = "Conquer the sky! Dodge the gates.";
+      if (this.score === 0 && (active ? active.bestScore : 0) === 0) {
+        this.goComparisonText.innerHTML = "Dodge the laser gates to log flight history.";
       } else {
-        const diff = this.highScore - this.score;
-        this.goComparisonText.innerHTML = `You were <span class="highlight-score">${diff}</span> ${diff === 1 ? 'point' : 'points'} away from your best of <span class="highlight-high">${this.highScore}</span>.`;
+        const activeBest = active ? active.bestScore : 0;
+        const diff = activeBest - this.score;
+        if (diff === 0) {
+          this.goComparisonText.innerHTML = `Matched your personal best score of <span class="highlight-high">${activeBest}</span>!`;
+        } else {
+          this.goComparisonText.innerHTML = `You were <span class="highlight-score">${diff}</span> ${diff === 1 ? 'point' : 'points'} away from your best of <span class="highlight-high">${activeBest}</span>.`;
+        }
       }
     }
 
@@ -1188,6 +1353,265 @@ class GameEngine {
       this.ctx.stroke();
     }
     this.ctx.restore();
+  }
+
+  // --- Pilot Registry & History Helpers ---
+
+  saveData() {
+    try {
+      localStorage.setItem('wingrush_pilots', JSON.stringify(this.pilots));
+      localStorage.setItem('wingrush_active_pilot', this.activePilot);
+      localStorage.setItem('wingrush_history', JSON.stringify(this.history));
+      const globalBest = this.getGlobalBest();
+      localStorage.setItem('wingrush_best', globalBest);
+      this.highScore = globalBest;
+    } catch (e) {
+      console.warn("Storage write failed", e);
+    }
+  }
+
+  getGlobalBest() {
+    if (this.pilots.length === 0) return 0;
+    return Math.max(...this.pilots.map(p => p.bestScore), 0);
+  }
+
+  getActivePilotObj() {
+    return this.pilots.find(p => p.name === this.activePilot) || this.pilots[0];
+  }
+
+  openPilotRegistry() {
+    this.renderPilotsList();
+    this.pilotScreen.classList.remove('hidden');
+    window.gameAudio.playClick();
+  }
+
+  closePilotRegistry() {
+    this.pilotScreen.classList.add('hidden');
+    window.gameAudio.playClick();
+  }
+
+  registerPilot(name) {
+    this.pilots.push({
+      name: name,
+      bestScore: 0,
+      gamesPlayed: 0,
+      totalScore: 0
+    });
+    this.activePilot = name;
+    this.saveData();
+    this.updateLeaderboard();
+    this.pilotInput.value = '';
+    this.renderPilotsList();
+    window.gameAudio.playStart();
+  }
+
+  deletePilot(name, e) {
+    e.stopPropagation();
+    if (this.pilots.length <= 1) {
+      alert("REGISTRY ERROR\nAt least one active pilot must remain registered.");
+      return;
+    }
+    const confirmed = confirm(`DE-REGISTER PILOT: ${name}\nThis will permanently delete this codename and all their flight logs. Proceed?`);
+    if (!confirmed) return;
+
+    this.pilots = this.pilots.filter(p => p.name !== name);
+    this.history = this.history.filter(h => h.pilot !== name);
+
+    if (this.activePilot === name) {
+      this.activePilot = this.pilots[0].name;
+    }
+
+    this.saveData();
+    this.updateLeaderboard();
+    this.renderPilotsList();
+    window.gameAudio.playClick();
+  }
+
+  selectPilot(name) {
+    this.activePilot = name;
+    this.saveData();
+    this.updateLeaderboard();
+    this.renderPilotsList();
+    window.gameAudio.playClick();
+    this.closePilotRegistry();
+  }
+
+  renderPilotsList() {
+    this.pilotList.innerHTML = '';
+    const sorted = [...this.pilots].sort((a, b) => {
+      if (b.bestScore !== a.bestScore) return b.bestScore - a.bestScore;
+      return a.name.localeCompare(b.name);
+    });
+
+    sorted.forEach(pilot => {
+      const isActive = pilot.name === this.activePilot;
+      
+      const row = document.createElement('div');
+      row.className = `pilot-row ${isActive ? 'active' : ''}`;
+      row.addEventListener('click', () => this.selectPilot(pilot.name));
+
+      const left = document.createElement('div');
+      left.className = 'pilot-row-left';
+      
+      const indicator = document.createElement('div');
+      indicator.className = 'pilot-row-indicator';
+      
+      const nameSpan = document.createElement('span');
+      nameSpan.className = 'pilot-row-name';
+      nameSpan.innerText = pilot.name;
+
+      left.appendChild(indicator);
+      left.appendChild(nameSpan);
+
+      const right = document.createElement('div');
+      right.className = 'pilot-row-right';
+
+      const scoreSpan = document.createElement('span');
+      scoreSpan.className = 'pilot-row-score';
+      scoreSpan.innerText = `BEST: ${pilot.bestScore}`;
+
+      right.appendChild(scoreSpan);
+
+      if (this.pilots.length > 1) {
+        const delBtn = document.createElement('button');
+        delBtn.className = 'pilot-delete-btn';
+        delBtn.ariaLabel = `Delete Pilot ${pilot.name}`;
+        delBtn.innerHTML = `
+          <svg viewBox="0 0 24 24" width="16" height="16">
+            <path fill="currentColor" d="M19,4H15.5L14.5,3H9.5L8.5,4H5V6H19M6,19A2,2 0 0,0 8,21H16A2,2 0 0,0 18,19V7H6V19Z"/>
+          </svg>
+        `;
+        delBtn.addEventListener('click', (e) => this.deletePilot(pilot.name, e));
+        right.appendChild(delBtn);
+      }
+
+      row.appendChild(left);
+      row.appendChild(right);
+      this.pilotList.appendChild(row);
+    });
+  }
+
+  openHistory() {
+    this.historyFilter = 'GLOBAL';
+    this.filterAllBtn.classList.add('active');
+    this.filterPersonalBtn.classList.remove('active');
+    this.renderHistoryList();
+    
+    this.pilotScreen.classList.add('hidden');
+    this.historyScreen.classList.remove('hidden');
+    window.gameAudio.playClick();
+  }
+
+  closeHistory() {
+    this.historyScreen.classList.add('hidden');
+    this.pilotScreen.classList.remove('hidden');
+    this.renderPilotsList();
+    window.gameAudio.playClick();
+  }
+
+  toggleHistoryFilter(filter) {
+    this.historyFilter = filter;
+    if (filter === 'GLOBAL') {
+      this.filterAllBtn.classList.add('active');
+      this.filterPersonalBtn.classList.remove('active');
+    } else {
+      this.filterAllBtn.classList.remove('active');
+      this.filterPersonalBtn.classList.add('active');
+    }
+    this.renderHistoryList();
+    window.gameAudio.playClick();
+  }
+
+  renderHistoryList() {
+    this.historyList.innerHTML = '';
+    
+    const filtered = this.history.filter(run => {
+      if (this.historyFilter === 'GLOBAL') return true;
+      return run.pilot === this.activePilot;
+    });
+
+    const sorted = [...filtered].sort((a, b) => b.timestamp - a.timestamp);
+
+    const totalRuns = sorted.length;
+    let avgScore = 0.0;
+    if (totalRuns > 0) {
+      const sum = sorted.reduce((acc, curr) => acc + curr.score, 0);
+      avgScore = (sum / totalRuns).toFixed(1);
+    }
+
+    this.summaryTotalRuns.innerText = totalRuns;
+    this.summaryAvgScore.innerText = avgScore;
+
+    if (sorted.length === 0) {
+      const empty = document.createElement('div');
+      empty.className = 'history-empty';
+      empty.innerText = "No flight logs recorded yet.";
+      this.historyList.appendChild(empty);
+      return;
+    }
+
+    const maxGlobalScore = this.history.length > 0 ? Math.max(...this.history.map(h => h.score)) : 0;
+
+    sorted.forEach(run => {
+      const isGlobalRecord = run.score > 0 && run.score === maxGlobalScore;
+      
+      const row = document.createElement('div');
+      row.className = `history-row ${isGlobalRecord ? 'record-holder' : ''}`;
+
+      const left = document.createElement('div');
+      left.className = 'history-left';
+
+      const nameSpan = document.createElement('span');
+      nameSpan.className = 'history-name';
+      nameSpan.innerText = run.pilot;
+
+      const dateSpan = document.createElement('span');
+      dateSpan.className = 'history-date';
+      dateSpan.innerText = this.formatDate(run.timestamp);
+
+      left.appendChild(nameSpan);
+      left.appendChild(dateSpan);
+
+      const right = document.createElement('div');
+      right.className = 'history-right';
+
+      const scoreSpan = document.createElement('span');
+      scoreSpan.className = 'history-score-val';
+      scoreSpan.innerText = run.score;
+
+      right.appendChild(scoreSpan);
+
+      if (run.score > 0) {
+        if (run.score === maxGlobalScore) {
+          const medal = document.createElement('span');
+          medal.className = 'history-medal';
+          medal.title = "Global Record";
+          medal.innerText = "🏆";
+          right.appendChild(medal);
+        } else {
+          const pilotRuns = this.history.filter(h => h.pilot === run.pilot);
+          const pilotBest = pilotRuns.length > 0 ? Math.max(...pilotRuns.map(h => h.score)) : 0;
+          if (run.score === pilotBest) {
+            const medal = document.createElement('span');
+            medal.className = 'history-medal';
+            medal.title = "Personal Best";
+            medal.innerText = "⭐";
+            right.appendChild(medal);
+          }
+        }
+      }
+
+      row.appendChild(left);
+      row.appendChild(right);
+      this.historyList.appendChild(row);
+    });
+  }
+
+  formatDate(timestamp) {
+    const d = new Date(timestamp);
+    const months = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
+    const pad = (n) => n < 10 ? '0' + n : n;
+    return `${months[d.getMonth()]} ${d.getDate()}, ${pad(d.getHours())}:${pad(d.getMinutes())}`;
   }
 }
 
